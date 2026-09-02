@@ -149,6 +149,20 @@ class FluxScheduler(Scheduler):
     def internal_script_run_command(self) -> str:
         return "flux run "
 
+    def ephemeral_identity_wrapper(self) -> list[str]:
+        """Have rank zero announce the Flux job ID before user code."""
+        return [
+            "/bin/sh",
+            "-c",
+            (
+                'if [ "${FLUX_TASK_RANK:-}" = 0 ] '
+                '&& [ -n "${FLUX_JOB_ID:-}" ]; then '
+                'printf "HPC_LAUNCHER_JOB_ID=%s\\n" "$FLUX_JOB_ID" >&2; '
+                'fi; exec "$@"'
+            ),
+            "hpc-launcher",
+        ]
+
     def get_job_id(self, output: str) -> Optional[str]:
         # The job ID is the only printout when calling flux batch
         return output.strip()

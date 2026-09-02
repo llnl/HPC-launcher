@@ -229,6 +229,10 @@ Notes:
   `-x ~--overlap`). `--exclusive` suppresses both.
 - Non-blocking (`--bg`) submissions are unaffected: submitting a batch job
   from inside an allocation deliberately creates a new job.
+- A blocking ephemeral launch (one without `--launch-dir`) reports its live
+  scheduler identity on stderr before starting user code. Flux prints
+  `HPC_LAUNCHER_JOB_ID=<jobid>`; SLURM prints
+  `HPC_LAUNCHER_STEP_ID=<jobid>.<stepid>`. Only rank zero emits the line.
 
 ### Job Scheduling
 

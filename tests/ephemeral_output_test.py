@@ -53,8 +53,10 @@ import time
 import pytest
 
 from hpc_launcher.cli import console_pipe
+from hpc_launcher.schedulers.flux import FluxScheduler
 from hpc_launcher.schedulers import scheduler as scheduler_mod
 from hpc_launcher.schedulers.local import LocalScheduler
+from hpc_launcher.schedulers.slurm import SlurmScheduler
 from hpc_launcher.systems import configure
 
 LAUNCH = [sys.executable, "-m", "hpc_launcher.cli.launch"]
@@ -66,6 +68,103 @@ LAUNCH = [sys.executable, "-m", "hpc_launcher.cli.launch"]
 # the window by a factor of three. See the individual docstrings.
 _OBSERVE_TIMEOUT = 20.0
 _CHILD_LIFETIME = 60
+
+
+@pytest.mark.parametrize(
+    ("scheduler", "identity_env", "expected"),
+    [
+        (
+            SlurmScheduler(nodes=1, procs_per_node=1, gpus_per_proc=0),
+            {"SLURM_PROCID": "0", "SLURM_JOB_ID": "1234", "SLURM_STEP_ID": "7"},
+            "HPC_LAUNCHER_STEP_ID=1234.7",
+        ),
+        (
+            FluxScheduler(nodes=1, procs_per_node=1, gpus_per_proc=0),
+            {"FLUX_TASK_RANK": "0", "FLUX_JOB_ID": "f5wWq9"},
+            "HPC_LAUNCHER_JOB_ID=f5wWq9",
+        ),
+    ],
+)
+def test_ephemeral_scheduler_wrapper_reports_identity_and_preserves_argv(
+    scheduler, identity_env, expected
+):
+    """Rank zero announces its scheduler identity before execing user code."""
+    user_code = "import sys; print(repr(sys.argv[1:]))"
+    user_args = ["space separated", "semi;colon", "$(literal)"]
+    proc = subprocess.run(
+        scheduler.ephemeral_identity_wrapper()
+        + [sys.executable, "-c", user_code]
+        + user_args,
+        capture_output=True,
+        text=True,
+        env={**os.environ, **identity_env},
+    )
+
+    assert proc.returncode == 0, proc.stderr
+    assert proc.stderr.strip() == expected
+    assert proc.stdout.strip() == repr(user_args)
+
+
+@pytest.mark.parametrize(
+    ("scheduler", "identity_env"),
+    [
+        (
+            SlurmScheduler(nodes=1, procs_per_node=1, gpus_per_proc=0),
+            {"SLURM_PROCID": "1", "SLURM_JOB_ID": "1234", "SLURM_STEP_ID": "7"},
+        ),
+        (
+            FluxScheduler(nodes=1, procs_per_node=1, gpus_per_proc=0),
+            {"FLUX_TASK_RANK": "1", "FLUX_JOB_ID": "f5wWq9"},
+        ),
+    ],
+)
+def test_ephemeral_scheduler_wrapper_is_quiet_off_rank_zero(
+    scheduler, identity_env
+):
+    """A multi-task launch emits exactly one identity announcement."""
+    proc = subprocess.run(
+        scheduler.ephemeral_identity_wrapper() + ["/bin/true"],
+        capture_output=True,
+        text=True,
+        env={**os.environ, **identity_env},
+    )
+
+    assert proc.returncode == 0
+    assert proc.stderr == ""
+
+
+@pytest.mark.parametrize(
+    "scheduler",
+    [
+        SlurmScheduler(nodes=1, procs_per_node=1, gpus_per_proc=0),
+        FluxScheduler(nodes=1, procs_per_node=1, gpus_per_proc=0),
+    ],
+)
+def test_ephemeral_launch_inserts_identity_wrapper(
+    scheduler, monkeypatch, stub_system
+):
+    """The no-launch-directory path places the wrapper before user argv."""
+    captured = {}
+
+    def _fake_runner(command, **kwargs):
+        captured["command"] = command
+        return 0
+
+    monkeypatch.setattr(scheduler_mod, "run_process_with_live_output", _fake_runner)
+    user_argv = ["/bin/echo", "space separated", "semi;colon"]
+
+    result = scheduler.launch(
+        stub_system,
+        folder_name=None,
+        filename=None,
+        command=user_argv[0],
+        args=user_argv[1:],
+        blocking=True,
+    )
+
+    expected_tail = scheduler.ephemeral_identity_wrapper() + user_argv
+    assert captured["command"][-len(expected_tail):] == expected_tail
+    assert result.returncode == 0
 
 
 def _read_line_with_timeout(stream, timeout: float):

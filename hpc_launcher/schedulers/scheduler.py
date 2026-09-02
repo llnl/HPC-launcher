@@ -630,6 +630,21 @@ class Scheduler:
         """
         raise NotImplementedError
 
+    def ephemeral_identity_wrapper(self) -> list[str]:
+        """Return an optional argv wrapper that announces a live job ID.
+
+        A blocking ephemeral launch has no generated script in which to put
+        scheduler bookkeeping.  Backends that learn their job/step identity
+        only after the parallel launcher starts may return a small wrapper
+        here.  It is inserted between the scheduler command and the user's
+        command; the wrapper must ultimately ``exec \"$@\"`` so the user's
+        argv and signal behavior are preserved.
+
+        The default is appropriate for local and schedulers that do not
+        expose a runtime identity this way.
+        """
+        return []
+
     def launcher_script(
         self,
         system: "System",
@@ -1016,7 +1031,7 @@ class Scheduler:
 
         if not use_launch_folder: # Launch job and trace outputs live
             # Run interactive script
-            full_cmdline = cmd + [command]
+            full_cmdline = cmd + self.ephemeral_identity_wrapper() + [command]
 
             for arg in args:
                 full_cmdline += [arg]

@@ -246,6 +246,22 @@ class SlurmScheduler(Scheduler):
     def internal_script_run_command(self) -> str:
         return "srun -u "
 
+    def ephemeral_identity_wrapper(self) -> list[str]:
+        """Have rank zero announce the Slurm job-step ID before user code."""
+        return [
+            "/bin/sh",
+            "-c",
+            (
+                'if [ "${SLURM_PROCID:-}" = 0 ] '
+                '&& [ -n "${SLURM_JOB_ID:-}" ] '
+                '&& [ -n "${SLURM_STEP_ID:-}" ]; then '
+                'printf "HPC_LAUNCHER_STEP_ID=%s.%s\\n" '
+                '"$SLURM_JOB_ID" "$SLURM_STEP_ID" >&2; '
+                'fi; exec "$@"'
+            ),
+            "hpc-launcher",
+        ]
+
     def get_job_id(self, output: str) -> Optional[str]:
         # The job ID is the last number in the printout
         last_line = output.strip().split("\n")[-1].strip()
