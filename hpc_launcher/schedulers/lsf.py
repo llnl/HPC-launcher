@@ -230,6 +230,11 @@ class LSFScheduler(Scheduler):
     def internal_script_run_command(self) -> str:
         return "jsrun "
 
+    @classmethod
+    def cancel_command(cls, identifier: str) -> list[str]:
+        """Return the LSF command that cancels a job."""
+        return ["bkill", identifier]
+
     def get_job_id(self, output: str) -> Optional[str]:
         # bsub prints e.g. "Job <123> is submitted to queue <pbatch>." on a
         # successful non-blocking submission; return None (per the base

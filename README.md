@@ -70,10 +70,11 @@ Using HPC-Launcher within existing PyTorch code with explicity invoking it from 
 import hpc_launcher.torch
 ```
 
-## CLI options for HPC-Launcher `launch` and `torchrun-hpc` commands
+## HPC-Launcher command-line tools
 
 - [`launch`](./launch_cli.md) - General purpose HPC job launcher
 - [`torchrun-hpc`](./torchrun-hpc_cli.md) - PyTorch-specific distributed training launcher
+- [`hpc-launcher-cancel`](./cancel_cli.md) - Cancel a launched job or job step
 
 # LBANN: Livermore Big Artificial Neural Network Toolkit
 

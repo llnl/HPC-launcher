@@ -262,6 +262,11 @@ class SlurmScheduler(Scheduler):
             "hpc-launcher",
         ]
 
+    @classmethod
+    def cancel_command(cls, identifier: str) -> list[str]:
+        """Return the Slurm command that cancels a job or job step."""
+        return ["scancel", identifier]
+
     def get_job_id(self, output: str) -> Optional[str]:
         # The job ID is the last number in the printout
         last_line = output.strip().split("\n")[-1].strip()

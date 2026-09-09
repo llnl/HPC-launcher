@@ -199,6 +199,13 @@ class LocalScheduler(Scheduler):
         return None
 
     @classmethod
+    def cancel_command(cls, identifier: str) -> list[str]:
+        """Return the command that terminates a local launch by PID."""
+        if not identifier.isdecimal():
+            raise ValueError("a local cancellation identifier must be a process ID")
+        return ["kill", "-TERM", identifier]
+
+    @classmethod
     def get_parallel_configuration(cls) -> tuple[int, int, int, int]:
         """
         A local job is always exactly one process: ``--local`` does not spawn

@@ -87,6 +87,7 @@ setup(
         "console_scripts": [
             "torchrun-hpc = hpc_launcher.cli.torchrun_hpc:main",
             "launch = hpc_launcher.cli.launch:main",
+            "hpc-launcher-cancel = hpc_launcher.cli.cancel:main",
         ],
     },
     install_requires=["psutil"],

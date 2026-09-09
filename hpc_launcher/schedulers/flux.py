@@ -163,6 +163,11 @@ class FluxScheduler(Scheduler):
             "hpc-launcher",
         ]
 
+    @classmethod
+    def cancel_command(cls, identifier: str) -> list[str]:
+        """Return the Flux command that cancels a job."""
+        return ["flux", "cancel", identifier]
+
     def get_job_id(self, output: str) -> Optional[str]:
         # The job ID is the only printout when calling flux batch
         return output.strip()

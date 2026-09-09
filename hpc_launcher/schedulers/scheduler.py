@@ -645,6 +645,18 @@ class Scheduler:
         """
         return []
 
+    @classmethod
+    def cancel_command(cls, identifier: str) -> list[str]:
+        """Return the native command that cancels ``identifier``.
+
+        Scheduler implementations own the syntax for cancelling their jobs
+        or job steps.  Keeping it beside the launch-command definitions avoids
+        duplicating backend knowledge in command-line front ends.
+        """
+        raise NotImplementedError(
+            f"{cls.__name__} does not define a cancellation command"
+        )
+
     def launcher_script(
         self,
         system: "System",
