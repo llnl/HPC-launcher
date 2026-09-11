@@ -76,6 +76,7 @@ def _clear_alloc_env(monkeypatch):
         "SLURM_JOB_ID",
         "SLURM_JOB_NUM_NODES",
         "FLUX_URI",
+        "LSB_HOSTS",
         "LLNL_NUM_COMPUTE_NODES",
     ):
         monkeypatch.delenv(var, raising=False)
@@ -108,8 +109,23 @@ def test_probe_inside_slurm_allocation(monkeypatch):
 
 def test_probe_inside_lsf_allocation(monkeypatch):
     _clear_alloc_env(monkeypatch)
+    monkeypatch.setenv("LSB_HOSTS", "h1 h1 h2 h2 h3 h3")
     monkeypatch.setenv("LLNL_NUM_COMPUTE_NODES", "2")
+    # LC's exported count is preferred over counting LSB_HOSTS.
     assert num_nodes_in_current_allocation() == 2
+
+
+def test_probe_inside_lsf_allocation_without_lc_count(monkeypatch):
+    _clear_alloc_env(monkeypatch)
+    monkeypatch.setenv("LSB_HOSTS", "h1 h1 h2 h2 h3 h3")
+    assert num_nodes_in_current_allocation() == 3
+
+
+def test_probe_ignores_stray_lc_count_outside_lsf(monkeypatch):
+    # LLNL_NUM_COMPUTE_NODES on its own is not an LSF allocation.
+    _clear_alloc_env(monkeypatch)
+    monkeypatch.setenv("LLNL_NUM_COMPUTE_NODES", "2")
+    assert num_nodes_in_current_allocation() is None
 
 
 # ---------------------------------------------------------------------------

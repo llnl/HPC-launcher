@@ -794,13 +794,35 @@ class Scheduler:
         return None
 
     @classmethod
-    def num_nodes_in_allocation(cls) -> tuple[int]:
+    def in_allocation(cls) -> bool:
         """
-        When running under an allocation, check how many nodes are available
+        Is this process already running inside an allocation owned by this
+        scheduler (e.g. a salloc/sbatch, flux alloc, or lalloc/bsub -Is shell)?
 
-        :return: Number of nodes in an allocation
+        A blocking launch from inside an allocation runs as a nested job step
+        rather than requesting a new allocation, and several argument-building
+        decisions key off that. Schedulers that can recognize their allocation
+        from the environment override this; the default, which also serves the
+        local scheduler, is never inside one.
+
+        :return: True if inside an allocation of this scheduler.
         """
-        raise NotImplementedError
+        return False
+
+    @classmethod
+    def num_nodes_in_allocation(cls) -> Optional[int]:
+        """
+        When running inside an allocation of this scheduler (see
+        :meth:`in_allocation`), report how many nodes it holds. Each
+        scheduler consults only its own environment; the scheduler-agnostic
+        ``hpc_launcher.schedulers.num_nodes_in_current_allocation`` asks each
+        scheduler in turn.
+
+        :return: Number of nodes in the allocation, or None when not inside
+                 an allocation of this scheduler (the default, which also
+                 serves the local scheduler).
+        """
+        return None
 
     @classmethod
     def get_parallel_rank_env_variable(cls) -> str:

@@ -33,6 +33,12 @@ logger = logging.getLogger(__name__)
 @dataclass
 class FluxScheduler(Scheduler):
 
+    @classmethod
+    def in_allocation(cls) -> bool:
+        # FLUX_URI points at the enclosing Flux instance (flux alloc / flux
+        # batch); a `flux run` issued with it set is a nested job.
+        return os.getenv("FLUX_URI") is not None
+
     def build_scheduler_specific_arguments(
         self, system: "System", blocking: bool = True
     ):
@@ -108,7 +114,7 @@ class FluxScheduler(Scheduler):
             self.common_launch_args["--job-name"] = f"{self.job_name}"
 
         if self.queue:
-            if os.getenv("FLUX_URI"):
+            if self.in_allocation():
                 logger.warning(
                     f"WARNING: Dropping unsupported option requested when running inside of an allocation: --queue={self.queue}"
                 )
@@ -174,7 +180,7 @@ class FluxScheduler(Scheduler):
 
     @classmethod
     def num_nodes_in_allocation(cls) -> Optional[int]:
-        if os.getenv("FLUX_URI"):
+        if cls.in_allocation():
             cmd = ["flux", "resource", "info"]
             proc = subprocess.run(cmd, universal_newlines=True, capture_output=True)
             m = re.search(r"^(\d*) Nodes, (\d*) Cores, (\d*) GPUs$", proc.stdout)

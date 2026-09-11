@@ -30,6 +30,12 @@ from hpc_launcher.schedulers import parse_env_list
 @dataclass
 class LSFScheduler(Scheduler):
 
+    @classmethod
+    def in_allocation(cls) -> bool:
+        # LSB_HOSTS is exported inside an lalloc / bsub -Is shell, where the
+        # blocking launch command is jsrun rather than bsub.
+        return os.getenv("LSB_HOSTS") is not None
+
     def build_scheduler_specific_arguments(
         self, system: "System", blocking: bool = True
     ):
@@ -129,7 +135,7 @@ class LSFScheduler(Scheduler):
         return "#BSUB"
 
     def blocking_launch_command(self) -> list[str]:
-        if os.getenv("LSB_HOSTS"):
+        if self.in_allocation():
             return ["jsrun"]
         else:
             return ["bsub", "-Is"]
@@ -190,19 +196,16 @@ class LSFScheduler(Scheduler):
         return "export HPC_LAUNCHER_HOSTLIST=$(echo $LSB_HOSTS | tr ' ' '\\n' | sort -u)\n"
 
     def enable_run_args_on_launch_command(self) -> bool:
-        if os.getenv("LSB_HOSTS"):
-            return True
-        else:
-            return False
+        return self.in_allocation()
 
     def launch_command_is_run_command(self) -> bool:
         """
         Is the *blocking* launch command the run command (jsrun) rather than
         the submit command (bsub)? True exactly when we are already inside an
-        allocation, which is the standard Lassen workflow of running from an
-        ``lalloc``/``bsub -Is`` shell. Same condition
-        :meth:`enable_run_args_on_launch_command` keys off, named for what the
-        callers below actually ask about.
+        allocation (:meth:`in_allocation`), which is the standard Lassen
+        workflow of running from an ``lalloc``/``bsub -Is`` shell. Same
+        condition :meth:`enable_run_args_on_launch_command` keys off, named
+        for what the callers below actually ask about.
 
         :return: True if a blocking launch runs jsrun directly.
         """
@@ -222,10 +225,9 @@ class LSFScheduler(Scheduler):
         return not (blocking and self.launch_command_is_run_command())
 
     def require_parallel_internal_run_command(self, blocking: bool) -> bool:
-        if not blocking or (blocking and not os.getenv("LSB_HOSTS")):
-            return True
-        else:
-            return False
+        # Only a blocking launch from inside an allocation runs jsrun
+        # directly; every other path submits a script that must carry it.
+        return not (blocking and self.in_allocation())
 
     def internal_script_run_command(self) -> str:
         return "jsrun "
@@ -247,10 +249,16 @@ class LSFScheduler(Scheduler):
 
     @classmethod
     def num_nodes_in_allocation(cls) -> Optional[int]:
-        if os.getenv("LLNL_NUM_COMPUTE_NODES"):
-            return int(os.getenv("LLNL_NUM_COMPUTE_NODES"))
-
-        return None
+        if not cls.in_allocation():
+            return None
+        # LC's LSF prolog exports the node count directly; elsewhere derive
+        # it from LSB_HOSTS, which lists each host once per allocated slot
+        # (the same dedup export_hostlist does with `sort -u`).
+        nodes = os.getenv("LLNL_NUM_COMPUTE_NODES")
+        if nodes:
+            return int(nodes)
+        hosts = set(os.getenv("LSB_HOSTS", "").split())
+        return len(hosts) if hosts else None
 
     @classmethod
     def get_parallel_rank_env_variable(self) -> str:
@@ -288,8 +296,8 @@ class LSFScheduler(Scheduler):
         # the full rationale.
         env_list = []
         if protocol.lower() == "tcp":
-            if os.getenv("LSB_HOSTS"):
-                # When runing under an allocation use the current node as the coordinator
+            if self.in_allocation():
+                # When running under an allocation use the current node as the coordinator
                 env_list.append(("TORCHRUN_HPC_MASTER_ADDR", os.getenv("HOSTNAME")))
             else:
                 env_list.append(

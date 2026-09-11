@@ -15,8 +15,6 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, Optional
 from io import StringIO
 import os
-import subprocess
-import re
 
 if TYPE_CHECKING:
     # If type-checking, import the other class
@@ -44,17 +42,12 @@ def _time_string(minutes):
 @dataclass
 class SlurmScheduler(Scheduler):
 
-    @staticmethod
-    def in_slurm_allocation() -> bool:
-        """
-        Is this process already inside a Slurm allocation (salloc/sbatch)?
-
-        When ``SLURM_JOB_ID`` is set, ``srun`` creates a nested job step
-        within that allocation rather than requesting a new one -- provided
-        its options stay compatible with the enclosing job. The launch
-        arguments are built differently in that case (see
-        ``build_scheduler_specific_arguments``).
-        """
+    @classmethod
+    def in_allocation(cls) -> bool:
+        # SLURM_JOB_ID is set by salloc and sbatch. When it is present srun
+        # creates a nested job step within that allocation rather than
+        # requesting a new one -- provided its options stay compatible with
+        # the enclosing job (see build_scheduler_specific_arguments).
         return os.getenv("SLURM_JOB_ID") is not None
 
     def build_scheduler_specific_arguments(
@@ -68,7 +61,7 @@ class SlurmScheduler(Scheduler):
         # *new* allocation instead of running the step in the current one.
         # Non-blocking (sbatch) submissions are left untouched: submitting a
         # new batch job from inside an allocation is a deliberate new job.
-        nested_job_step = blocking and self.in_slurm_allocation()
+        nested_job_step = blocking and self.in_allocation()
 
         if self.out_log_file and not blocking:
             self.submit_only_args["--output"] = f"{self.out_log_file}"
@@ -276,16 +269,13 @@ class SlurmScheduler(Scheduler):
 
     @classmethod
     def num_nodes_in_allocation(cls) -> Optional[int]:
-        if os.getenv("FLUX_URI"):
-            cmd = ["flux", "resource", "info"]
-            proc = subprocess.run(cmd, universal_newlines=True, capture_output=True)
-            m = re.search(r"^(\d*) Nodes, (\d*) Cores, (\d*) GPUs$", proc.stdout)
-            if m:
-                return int(m.group(1))
-        elif os.getenv("SLURM_JOB_NUM_NODES"):
-            return int(os.getenv("SLURM_JOB_NUM_NODES"))
-        elif os.getenv("LLNL_NUM_COMPUTE_NODES"):
-            return int(os.getenv("LLNL_NUM_COMPUTE_NODES"))
+        # Slurm only: SLURM_JOB_NUM_NODES is set alongside SLURM_JOB_ID by
+        # salloc and sbatch. Other schedulers' allocations are their own
+        # business (see num_nodes_in_current_allocation for the agnostic probe).
+        if cls.in_allocation():
+            nodes = os.getenv("SLURM_JOB_NUM_NODES")
+            if nodes:
+                return int(nodes)
 
         return None
 

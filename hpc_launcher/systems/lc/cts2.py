@@ -73,7 +73,7 @@ class CTS2(System):
             # -- so with them a step's GPU-visibility variable is silently
             # left unset (the cgroup still confines the devices, but CUDA
             # code that reads the variable sees nothing).
-            if not scheduler.in_slurm_allocation():
+            if not scheduler.in_allocation():
                 scheduler.run_only_args["--mpibind"] = "off"
                 scheduler.run_only_args["--gpu-bind"] = "none"
 

@@ -376,17 +376,17 @@ class ElCapitan(System):
     def customize_scheduler(self, scheduler):
         use_this_rccl = os.getenv("LBANN_USE_THIS_RCCL")
         if type(scheduler) is FluxScheduler:
-            # Not when launching nested jobs inside an existing allocation
-            # (FLUX_URI set): --exclusive makes every nested `flux run`
-            # demand exclusive use of the node, so concurrent launches in
-            # one allocation serialize instead of packing side by side.
-            if not os.getenv("FLUX_URI"):
+            # Not when launching nested jobs inside an existing allocation:
+            # --exclusive makes every nested `flux run` demand exclusive use
+            # of the node, so concurrent launches in one allocation
+            # serialize instead of packing side by side.
+            if not scheduler.in_allocation():
                 scheduler.common_launch_args["--exclusive"] = None # This is an alloc only on slurm and alloc or run on flux
             # Note that options cannot have a space after the -o flag, e.g. -o<option>
             # Performance tuning for HPE Slingshot Cassini NIC
             scheduler.common_launch_args["-ofastload"] = "on"
             scheduler.common_launch_args["--setattr=rdzv_get_en"] = "0"
-            if os.getenv("FLUX_URI") or scheduler.gpus_per_proc > 1:
+            if scheduler.in_allocation() or scheduler.gpus_per_proc > 1:
                 # mpibind computes a task's GPUs from the NUMA locality of
                 # its cores, not from the GPU set Flux granted the job.
                 # That breaks two cases:
