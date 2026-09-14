@@ -15,6 +15,8 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, Optional
 from io import StringIO
 import os
+import re
+import subprocess
 
 if TYPE_CHECKING:
     # If type-checking, import the other class
@@ -269,15 +271,25 @@ class SlurmScheduler(Scheduler):
 
     @classmethod
     def num_nodes_in_allocation(cls) -> Optional[int]:
-        # Slurm only: SLURM_JOB_NUM_NODES is set alongside SLURM_JOB_ID by
-        # salloc and sbatch. Other schedulers' allocations are their own
-        # business (see num_nodes_in_current_allocation for the agnostic probe).
-        if cls.in_allocation():
-            nodes = os.getenv("SLURM_JOB_NUM_NODES")
-            if nodes:
-                return int(nodes)
-
-        return None
+        # Slurm only. salloc and sbatch export SLURM_JOB_NUM_NODES alongside
+        # SLURM_JOB_ID, but a shell that only had SLURM_JOB_ID exported into
+        # it (e.g. after ssh-ing to an allocated node) still runs srun as a
+        # nested step, so ask the controller for the job's size in that case.
+        if not cls.in_allocation():
+            return None
+        nodes = os.getenv("SLURM_JOB_NUM_NODES")
+        if nodes:
+            return int(nodes)
+        try:
+            proc = subprocess.run(
+                ["squeue", "-h", "-j", os.environ["SLURM_JOB_ID"], "-o", "%D"],
+                universal_newlines=True,
+                capture_output=True,
+            )
+        except FileNotFoundError:
+            return None
+        m = re.match(r"\s*(\d+)\s*$", proc.stdout)
+        return int(m.group(1)) if m else None
 
     @classmethod
     def get_parallel_rank_env_variable(self) -> str:

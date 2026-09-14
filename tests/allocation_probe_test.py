@@ -104,7 +104,31 @@ def test_slurm_node_count(no_allocation, monkeypatch):
     assert SlurmScheduler.num_nodes_in_allocation() is None
     monkeypatch.setenv("SLURM_JOB_ID", "424242")
     monkeypatch.setenv("SLURM_JOB_NUM_NODES", "4")
-    assert SlurmScheduler.num_nodes_in_allocation() == 4
+    with patch("subprocess.run") as run:
+        assert SlurmScheduler.num_nodes_in_allocation() == 4
+        run.assert_not_called()
+
+
+def test_slurm_node_count_asks_squeue_when_env_incomplete(no_allocation, monkeypatch):
+    # A shell with only SLURM_JOB_ID exported (e.g. after ssh to an
+    # allocated node) still runs srun as a nested step, so the size has to
+    # come from the controller.
+    monkeypatch.setenv("SLURM_JOB_ID", "329549")
+
+    def squeue(cmd, *args, **kwargs):
+        assert cmd == ["squeue", "-h", "-j", "329549", "-o", "%D"], cmd
+        return subprocess.CompletedProcess(cmd, 0, stdout="1\n", stderr="")
+
+    with patch("subprocess.run", side_effect=squeue):
+        assert SlurmScheduler.num_nodes_in_allocation() == 1
+
+    # No squeue on the host, or a job the controller no longer knows about:
+    # report "unknown" rather than fail.
+    with patch("subprocess.run", side_effect=FileNotFoundError):
+        assert SlurmScheduler.num_nodes_in_allocation() is None
+    gone = lambda cmd, *a, **k: subprocess.CompletedProcess(cmd, 1, stdout="", stderr="")
+    with patch("subprocess.run", side_effect=gone):
+        assert SlurmScheduler.num_nodes_in_allocation() is None
 
 
 def test_slurm_node_count_ignores_flux_and_lsf(no_allocation, monkeypatch):
