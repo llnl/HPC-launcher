@@ -75,7 +75,7 @@ def test_in_allocation_tracks_own_marker(scheduler_cls, no_allocation, monkeypat
     monkeypatch.setenv(var, value)
     assert scheduler_cls.in_allocation() is True
     # Also callable on an instance, which is how system code reaches it.
-    assert scheduler_cls(nodes=1, procs_per_node=1).in_allocation() is True
+    assert scheduler_cls(nodes=1, procs_per_node=1, gpus_per_proc=0).in_allocation() is True
 
 
 @pytest.mark.parametrize("scheduler_cls", list(_MARKERS), ids=lambda c: c.__name__)
