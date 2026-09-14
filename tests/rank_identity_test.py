@@ -72,6 +72,11 @@ from hpc_launcher.systems.system import GenericSystem
 
 from conftest import require_torch
 
+# Every test here builds commands or scripts and runs them, if at all, under
+# stub scheduler programs; none touches a real allocation. Inside one, Slurm
+# would build a nested job step instead and reject NODES=2 in a smaller job.
+pytestmark = pytest.mark.usefixtures("outside_allocation")
+
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 TORCHRUN_HPC_CLI_MD = os.path.join(REPO_ROOT, "torchrun-hpc_cli.md")
 

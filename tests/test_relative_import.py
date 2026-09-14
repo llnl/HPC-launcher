@@ -24,7 +24,7 @@ from hpc_launcher.systems import autodetect
 from hpc_launcher.systems.lc.sierra_family import Sierra
 from hpc_launcher.schedulers import get_schedulers
 
-from conftest import require_torch
+from conftest import require_torch, skip_unless_allocation_fits
 
 
 def test_torchrun_hpc_relimport():
@@ -37,11 +37,7 @@ def test_torchrun_hpc_relimport():
             or (scheduler_type == "lsf" and not shutil.which("jsrun"))):
         pytest.skip("No distributed launcher found")
 
-    scheduler = get_schedulers()[scheduler_type]
-    num_nodes_in_allocation = scheduler.num_nodes_in_allocation()
-    if not num_nodes_in_allocation is None and num_nodes_in_allocation == 0:
-        pytest.skip(
-            "Executed inside of an allocation with insufficient resources")
+    skip_unless_allocation_fits(get_schedulers()[scheduler_type], 1)
 
     require_torch()
 

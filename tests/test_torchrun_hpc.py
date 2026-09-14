@@ -24,7 +24,7 @@ from hpc_launcher.systems import autodetect
 from hpc_launcher.systems.lc.sierra_family import Sierra
 from hpc_launcher.schedulers import get_schedulers
 
-from conftest import require_torch
+from conftest import require_torch, skip_unless_allocation_fits
 
 
 def check_hostlist_file(exp_dir: str, stdout_buffer, num_ranks):
@@ -141,10 +141,7 @@ def test_launcher_multinode(num_nodes, procs_per_node, rdv, scheduler_type):
     ):
         pytest.skip("No distributed launcher found")
 
-    scheduler = get_schedulers()[scheduler_type]
-    num_nodes_in_allocation = scheduler.num_nodes_in_allocation()
-    if not num_nodes_in_allocation is None and num_nodes_in_allocation == 1:
-        pytest.skip("Executed inside of an allocation with insufficient resources")
+    skip_unless_allocation_fits(get_schedulers()[scheduler_type], num_nodes)
 
     require_torch()
 

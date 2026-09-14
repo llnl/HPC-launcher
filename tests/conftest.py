@@ -59,6 +59,51 @@ def stub_system() -> GenericSystem:
     return GenericSystem()
 
 
+# Environment variables from which a scheduler recognizes its own allocation
+# (see ``Scheduler.in_allocation`` / ``num_nodes_in_allocation``).
+ALLOCATION_ENV_VARS = (
+    "SLURM_JOB_ID",
+    "SLURM_JOB_NUM_NODES",
+    "FLUX_URI",
+    "LSB_HOSTS",
+    "LLNL_NUM_COMPUTE_NODES",
+)
+
+
+@pytest.fixture
+def outside_allocation(monkeypatch):
+    """
+    Make the test host look like it is not inside any scheduler allocation.
+
+    For command- and script-construction tests that never execute a
+    scheduler binary. Inside an existing allocation the schedulers build a
+    *nested job step* instead: Slurm drops allocation-selection flags such
+    as --partition and rejects a node count larger than the enclosing job,
+    which is correct at launch time but would make these tests depend on
+    the size and kind of allocation pytest happens to run in. Opt a module
+    in with ``pytestmark = pytest.mark.usefixtures("outside_allocation")``.
+    """
+    for var in ALLOCATION_ENV_VARS:
+        monkeypatch.delenv(var, raising=False)
+
+
+def skip_unless_allocation_fits(scheduler_cls, num_nodes: int) -> None:
+    """
+    Skip the calling on-hardware test when it is running inside an
+    allocation of the given scheduler that holds fewer than ``num_nodes``
+    nodes. A launch that size would be rejected as a nested job step (or
+    silently turn into a request for a new allocation), which is a property
+    of the allocation pytest was started in, not a defect in the launcher.
+    Outside an allocation (count unknown) the test runs normally.
+    """
+    available = scheduler_cls.num_nodes_in_allocation()
+    if available is not None and available < num_nodes:
+        pytest.skip(
+            f"Inside a {available}-node allocation; this test needs "
+            f"{num_nodes} node(s)"
+        )
+
+
 @pytest.fixture(autouse=True)
 def _no_shared_scheduler_or_system_state():
     """

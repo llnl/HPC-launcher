@@ -24,24 +24,10 @@ from hpc_launcher.schedulers.slurm import SlurmScheduler
 from hpc_launcher.systems.lc.el_capitan_family import ElCapitan
 from hpc_launcher.systems.system import GenericSystem
 
-
-@pytest.fixture(autouse=True)
-def _outside_any_allocation(monkeypatch):
-    """
-    These tests assert that allocation-selection flags such as --partition
-    appear on a blocking launch command. Inside an existing allocation the
-    Slurm scheduler deliberately drops those flags (a nested job step cannot
-    change partition), so make the test host look like it is not inside
-    any allocation regardless of where pytest is run.
-    """
-    for var in (
-        "SLURM_JOB_ID",
-        "SLURM_JOB_NUM_NODES",
-        "FLUX_URI",
-        "LSB_HOSTS",
-        "LLNL_NUM_COMPUTE_NODES",
-    ):
-        monkeypatch.delenv(var, raising=False)
+# These tests assert that allocation-selection flags such as --partition
+# appear on a blocking launch command; inside an existing allocation Slurm
+# deliberately drops them (a nested job step cannot change partition).
+pytestmark = pytest.mark.usefixtures("outside_allocation")
 
 
 def test_scheduler_args_not_shared_between_instances(stub_system):
